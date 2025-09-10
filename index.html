@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <title>義消服務查詢</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- 你也可以換成 Bootstrap，為了簡潔這裡用原生 + jQuery -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sakura.css/css/sakura.css">
+  <style>
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;}
+    .badge{display:inline-block;background:#eee;border:1px solid #ddd;border-radius:4px;padding:.1rem .4rem;margin-left:.25rem}
+    .grid{display:grid;grid-template-columns: 8rem 1fr; gap:.35rem .75rem; align-items:center}
+    .card{border:1px solid #ddd; border-radius:8px; padding:1rem; margin:1rem 0; background:#fff}
+    .ok{color:#0a8754; font-weight:700}
+    .warn{color:#c92a2a; font-weight:800}
+    .muted{color:#666}
+    pre{white-space:pre-wrap}
+  </style>
+</head>
+<body>
+  <main class="container" style="max-width:920px">
+    <h1>義消服務查詢 <small class="muted">（連線 Google Sheet）</small></h1>
+
+    <!-- 查詢列 -->
+    <div class="card">
+      <div class="grid">
+        <label for="txtName">姓名：</label>
+        <input id="txtName" type="text" placeholder="輸入姓名（支援部分比對）">
+
+        <label for="selYM">查詢年月：</label>
+        <select id="selYM"></select>
+      </div>
+      <div style="margin-top:.75rem">
+        <button id="btnSearch">查詢</button>
+        <span id="hint" class="muted"></span>
+      </div>
+    </div>
+
+    <!-- 結果 -->
+    <div id="panel" class="card" style="display:none">
+      <h3 id="pName" style="margin-top:0"></h3>
+      <div class="grid">
+        <div>本月時數：</div>
+        <div><span id="curHours">0</span> 小時 <span id="status" class="badge">—</span></div>
+
+        <div>最近 6 月合計：</div>
+        <div><span id="sum6">0</span> 小時</div>
+      </div>
+
+      <h4>最近 6 月明細</h4>
+      <pre id="recent" class="mono"></pre>
+    </div>
+
+    <!-- 空提示 -->
+    <div id="empty" class="card" style="display:none">
+      查無資料，請改用全名或確認試算表資料。
+    </div>
+  </main>
+
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
