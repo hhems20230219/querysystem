@@ -2,63 +2,390 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <title>義消服務查詢</title>
+  <title>義消服務查詢（分段＋內聯規則＋法規模態框）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- 你也可以換成 Bootstrap，為了簡潔這裡用原生 + jQuery -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sakura.css/css/sakura.css">
+
+  <!-- Bootstrap 5 & jQuery（CDN） -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
   <style>
-    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;}
-    .badge{display:inline-block;background:#eee;border:1px solid #ddd;border-radius:4px;padding:.1rem .4rem;margin-left:.25rem}
-    .grid{display:grid;grid-template-columns: 8rem 1fr; gap:.35rem .75rem; align-items:center}
-    .card{border:1px solid #ddd; border-radius:8px; padding:1rem; margin:1rem 0; background:#fff}
-    .ok{color:#0a8754; font-weight:700}
-    .warn{color:#c92a2a; font-weight:800}
-    .muted{color:#666}
-    pre{white-space:pre-wrap}
+    body { background:#f7f8fa; }
+    .page-title { font-weight:700; letter-spacing:.05em; }
+    .card-soft { border:1px solid #e9ecef; }
+    .section-title { font-weight:700; margin-bottom:.25rem; }
+    .keyline { border-left:4px solid #0d6efd; padding-left:.75rem; }
+    .kv { display:flex; gap:.5rem; align-items:baseline; margin:.35rem 0; }
+    .label { width:12em; color:#6c757d; }
+    .ok { color:#0a8754; font-weight:700; }
+    .warn { color:#c92a2a; font-weight:800; }
+    .rule { color:#6c757d; font-size:.9rem; }
+    .mono { font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .w-18 { width:18rem; }
   </style>
 </head>
 <body>
-  <main class="container" style="max-width:920px">
-    <h1>義消服務查詢 <small class="muted">（連線 Google Sheet）</small></h1>
+<div class="container py-4">
+  <!-- Header -->
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+    <h1 class="page-title h4 m-0">義消服務查詢</h1>
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-secondary">查詢年月：</span>
+      <select id="selYear" class="form-select form-select-sm w-18"></select>
+      <select id="selMonth" class="form-select form-select-sm w-18"></select>
+      <span id="rocBadge" class="badge text-bg-light"></span>
 
-    <!-- 查詢列 -->
-    <div class="card">
-      <div class="grid">
-        <label for="txtName">姓名：</label>
-        <input id="txtName" type="text" placeholder="輸入姓名（支援部分比對）">
+      <!-- 規則與法規條文 按鈕 -->
+      <button class="btn btn-outline-secondary btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#rulesModal">
+        規則與法規條文
+      </button>
+    </div>
+  </div>
 
-        <label for="selYM">查詢年月：</label>
-        <select id="selYM"></select>
-      </div>
-      <div style="margin-top:.75rem">
-        <button id="btnSearch">查詢</button>
-        <span id="hint" class="muted"></span>
+  <!-- 查詢列 -->
+  <div class="card card-soft mb-4">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label">姓名</label>
+          <input id="txtName" type="text" class="form-control" placeholder="輸入姓名（支援部分比對）">
+        </div>
+        <div class="col-md-3">
+          <button id="btnSearch" class="btn btn-primary w-100">查詢</button>
+        </div>
       </div>
     </div>
+  </div>
 
-    <!-- 結果 -->
-    <div id="panel" class="card" style="display:none">
-      <h3 id="pName" style="margin-top:0"></h3>
-      <div class="grid">
-        <div>本月時數：</div>
-        <div><span id="curHours">0</span> 小時 <span id="status" class="badge">—</span></div>
+  <!-- 查詢結果：協勤/訓練/年資/累積 + 基本資料 -->
+  <div class="card card-soft mb-4 d-none" id="cardSummary">
+    <div class="card-body">
+      <div class="section-title keyline">查詢結果</div>
 
-        <div>最近 6 月合計：</div>
-        <div><span id="sum6">0</span> 小時</div>
+      <!-- 基本資料（新增這一段） -->
+      <div class="kv"><div class="label">姓名：</div><div><span id="baseName">—</span></div></div>
+      <div class="kv"><div class="label">單位／職稱：</div><div><span id="baseUnit">—</span>　<span id="baseRole">—</span></div></div>
+      <div class="kv"><div class="label">性別／電話：</div><div><span id="baseGender">—</span>　<span id="basePhone">—</span></div></div>
+      <div class="kv"><div class="label">生日／歲數：</div><div><span id="baseBirth">—</span>　<span id="baseAge">—</span></div></div>
+      <div class="kv"><div class="label">救護員級別：</div><div><span id="baseEMT">—</span></div></div>
+      <div class="kv"><div class="label">備註：</div><div><span id="baseNote">—</span></div></div>
+      <hr class="my-3">
+
+      <div class="kv">
+        <div class="label">協勤時數：</div>
+        <div>
+          <span id="dutyHoursTotal">0</span> 小時； <span id="dutyStatus" class="ok">正常</span>
+          <span id="ruleDuty" class="rule ms-2"></span>
+        </div>
       </div>
 
-      <h4>最近 6 月明細</h4>
-      <pre id="recent" class="mono"></pre>
-    </div>
+      <div class="kv">
+        <div class="label">常年訓練：</div>
+        <div>
+          <span id="trainingYear">—</span> 年 出席 <span id="trainingAttend">0</span> 次、請假 <span id="trainingLeave">0</span> 次、缺席 <span id="trainingAbsent">0</span> 次；
+          <span id="trainingStatus" class="ok">正常</span>
+          <span id="ruleTraining" class="rule ms-2"></span>
+        </div>
+      </div>
 
-    <!-- 空提示 -->
-    <div id="empty" class="card" style="display:none">
-      查無資料，請改用全名或確認試算表資料。
+      <div class="kv"><div class="label">服務年資：</div><div><span id="serviceYears">—</span></div></div>
+      <div class="kv"><div class="label">入隊累積時數：</div><div><span id="joinAccHours">0</span> 小時</div></div>
     </div>
-  </main>
+  </div>
 
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-  <script src="./config.js"></script>
-  <script src="./app.js"></script>
+  <!-- 班程 -->
+  <div class="card card-soft mb-4 d-none" id="cardCourses">
+    <div class="card-body">
+      <div class="section-title keyline">班程</div>
+
+      <div class="kv">
+        <div class="label">新進人員基本訓練：</div>
+        <div>
+          <span id="courseBasicState" class="ok">已完成</span>
+          <span id="ruleCourseBasic" class="rule ms-2"></span>
+        </div>
+      </div>
+
+      <div class="kv">
+        <div class="label">基礎幹部講習班：</div>
+        <div>
+          <span id="courseCadreState" class="ok">已完成</span>
+          <span id="ruleCourseCadre" class="rule ms-2"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 獎項 -->
+  <div class="card card-soft mb-4 d-none" id="cardAwards">
+    <div class="card-body">
+      <div class="section-title keyline">獎項</div>
+
+      <div class="kv">
+        <div class="label">全國義消楷模（鳳凰獎）：</div>
+        <div>
+          <span id="awardPhoenix" class="ok">符合資格</span>
+          <span id="ruleAwardPhoenix" class="rule ms-2"></span>
+        </div>
+      </div>
+
+      <div class="kv">
+        <div class="label">全國救護志工菁英：</div>
+        <div>
+          <span id="awardEMS" class="ok">符合資格</span>
+          <span id="ruleAwardEMS" class="rule ms-2"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 每月協勤 -->
+  <div class="card card-soft mb-5 d-none" id="cardMonthly">
+    <div class="card-body">
+      <div class="section-title keyline">每月協勤時數</div>
+      <div class="kv"><div class="label">查詢年月：</div><div id="ymRoc">000年 00月</div></div>
+      <div class="kv"><div class="label">本月協勤時數：</div><div><span id="monthHours">0</span> 小時</div></div>
+      <pre id="recentN" class="mono bg-light p-3 border rounded small mb-0"></pre>
+    </div>
+  </div>
+
+  <!-- 空結果 -->
+  <div id="emptyHint" class="alert alert-info d-none">查無此人，請重新輸入（支援部分字）。</div>
+</div>
+
+<!-- 規則與法規條文 Modal -->
+<div class="modal fade" id="rulesModal" tabindex="-1" aria-labelledby="rulesModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 id="rulesModalLabel" class="modal-title">規則與法規條文</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+      </div>
+      <div class="modal-body">
+        <!-- 動態產生 -->
+        <div id="rulesDoc"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================
+   你自己的 WebApp URL（換掉這行）
+   ========================= */
+const API_BASE = 'https://script.google.com/macros/s/你的部署ID/exec';
+
+/* =========================
+   參數規則（只在前端顯示/判定用）
+   ========================= */
+const RULES = {
+  duty: { minMonthlyHours: 4, rolling: { months: 6, minSum: 24 }, totalCalcMode: 'force' },
+  training: { minAttendPerYear: 12, calcMode: 'auto' },
+  awards: {
+    phoenix: { minServiceYears: 5, minTotalHours: 800, cooldownPhoenixYears: 5, cooldownEMSYears: 2 },
+    emsElite: { minServiceYears: 5 }
+  },
+  courses: { basic: { mustFinishWithinYears: 2 }, cadre: { eligibleAfterYears: 1, mustFinishWithinYears: 3 } },
+  serviceYears: { calcMode: 'auto' },
+  display: { recentMonths: 6, rocYear: true }
+};
+
+/* =========================
+   法規（純展示）
+   ========================= */
+const LEGAL = {
+  titles: {
+    duty: "義勇消防組織編組訓練演習服勤辦法 第 15 條（示例）",
+    training: "義勇消防組織編組訓練演習服勤辦法 第 12 條（示例）",
+    courses: { basic: "義勇消防... 第 7 條（示例）", cadre: "義勇消防... 第 8 條（示例）" },
+    awards: { phoenix: "全國義消楷模評選要點 第 3 點（示例）", ems: "救護志工菁英評選要點 第 2 點（示例）" }
+  },
+  excerpts: {
+    duty: "每月協勤應達一定時數，或以連續數月累計達標。",
+    training: "常年訓練每年應參與達一定次數。"
+  }
+};
+
+/* =========================
+   小工具
+   ========================= */
+const pad2 = n => (n<10?`0${n}`:`${n}`);
+const toRoc = y => y - 1911;
+const ym = (y,m)=>`${y}-${pad2(m)}`;
+const fmtYm = (y,m)=> RULES.display.rocYear ? `${toRoc(y)}年 ${pad2(m)}月` : `${y}年 ${pad2(m)}月`;
+function sumObj(o){ return Object.values(o||{}).reduce((s,v)=>s+(Number(v)||0),0); }
+function recentKeys(y,m,n){ const a=[]; let yy=y,mm=m; for(let i=0;i<n;i++){ a.unshift(ym(yy,mm)); mm--; if(mm===0){ mm=12; yy--; } } return a; }
+
+/* =========================
+   計算/判定
+   ========================= */
+function calcServiceYearsByJoin(joinDate){
+  if(!joinDate) return null;
+  const s=new Date(joinDate), now=new Date();
+  if(isNaN(s.getTime())) return null;
+  let y=now.getFullYear()-s.getFullYear();
+  const m=now.getMonth()-s.getMonth();
+  if(m<0 || (m===0 && now.getDate()<s.getDate())) y--;
+  return Math.max(0,y);
+}
+function judgeDuty(y,m,monthly){
+  const mon = Number(monthly?.[ym(y,m)]||0);
+  const keys = recentKeys(y,m,RULES.display.recentMonths);
+  const sum = keys.reduce((s,k)=>s+(Number(monthly?.[k]||0)),0);
+  const ok = (mon>=RULES.duty.minMonthlyHours) || (sum>=RULES.duty.rolling.minSum);
+  return { mon, sum, keys, ok };
+}
+function judgeTraining(attend){ return attend>=RULES.training.minAttendPerYear; }
+function judgeAwards(years, hours, hist){
+  const P=RULES.awards.phoenix;
+  const phoenixOK = (years??0)>=P.minServiceYears && (hours??0)>=P.minTotalHours && !(hist?.gotPhoenixWithinYears) && !(hist?.gotEMSWithinYears);
+  const emsOK = (years??0)>=RULES.awards.emsElite.minServiceYears;
+  return { phoenixOK, emsOK };
+}
+
+/* =========================
+   年月 UI
+   ========================= */
+function initYM(){
+  const t=new Date(), y=t.getFullYear(), m=t.getMonth()+1;
+  const years=[y-2,y-1,y,y+1];
+  $('#selYear').empty(); $('#selMonth').empty();
+  years.forEach(yy=>$('#selYear').append(`<option value="${yy}">${yy}${RULES.display.rocYear?`（民國${toRoc(yy)}年）`:''}</option>`));
+  for(let i=1;i<=12;i++) $('#selMonth').append(`<option value="${i}">${pad2(i)}月</option>`));
+  $('#selYear').val(y); $('#selMonth').val(m);
+  $('#rocBadge').text(RULES.display.rocYear?`民國 ${toRoc(y)} 年`:`${y} 年`);
+}
+function curYM(){ return { y:+$('#selYear').val(), m:+$('#selMonth').val() }; }
+$('#selYear,#selMonth').on('change', ()=>{
+  const {y}=curYM();
+  $('#rocBadge').text(RULES.display.rocYear?`民國 ${toRoc(y)} 年`:`${y} 年`);
+  const name=$('#cardSummary').data('name'); if(name) render(name);
+});
+
+/* =========================
+   法規模態框
+   ========================= */
+function buildRulesDoc(){
+  const html = `
+    <div class="mb-3">
+      <h6>協勤 <small class="text-secondary">（${LEGAL.titles.duty}）</small></h6>
+      <div class="text-secondary">每月 ≥ <b>${RULES.duty.minMonthlyHours}</b> 小時，或最近 <b>${RULES.display.recentMonths}</b> 月合計 ≥ <b>${RULES.duty.rolling.minSum}</b> 小時。</div>
+    </div>
+    <div class="mb-3">
+      <h6>常年訓練 <small class="text-secondary">（${LEGAL.titles.training}）</small></h6>
+      <div class="text-secondary">全年訓練應達 <b>${RULES.training.minAttendPerYear}</b> 次。</div>
+    </div>
+  `;
+  $('#rulesDoc').html(html);
+}
+$('#rulesModal').on('show.bs.modal', buildRulesDoc);
+
+/* =========================
+   呼叫 GAS WebApp
+   ========================= */
+async function apiSearch(name, ymStr){
+  const url = `${API_BASE}?action=search&name=${encodeURIComponent(name)}${ymStr?`&ym=${encodeURIComponent(ymStr)}`:''}`;
+  const res = await fetch(url, { method:'GET' });
+  if(!res.ok) throw new Error('API 連線失敗');
+  const data = await res.json();
+  if(!data.ok) throw new Error(data.error || '查詢失敗');
+  return data; // { ok, name, monthly, profile, current?, recent?, sumRecent? }
+}
+
+/* =========================
+   查詢 & 渲染（整合 GAS 回傳）
+   ========================= */
+async function render(nameInput){
+  const key=(nameInput||'').trim();
+  if(!key){ $('#emptyHint').removeClass('d-none'); return; }
+  $('#btnSearch').prop('disabled', true).text('查詢中…');
+
+  try{
+    const {y,m} = curYM();
+    const ymStr = ym(y,m);
+    const data = await apiSearch(key, ymStr);
+
+    // 顯示卡片
+    $('#emptyHint').addClass('d-none');
+    $('#cardSummary,#cardCourses,#cardAwards,#cardMonthly').removeClass('d-none').data('name', data.name);
+
+    // 基本資料（data 工作表）
+    const p = data.profile || {};
+    $('#baseName').text(data.name || '—');
+    $('#baseUnit').text(p['單位'] || '—');
+    $('#baseRole').text(p['職稱'] || '—');
+    $('#baseGender').text(p['性別'] || '—');
+    $('#basePhone').text(p['連絡電話'] || '—');
+    $('#baseBirth').text(p['出生年月日'] || '—');
+    $('#baseAge').text(p['歲數'] || '—');
+    $('#baseEMT').text(p['救護員級別'] || '—');
+    $('#baseNote').text(p['備註'] || '—');
+
+    // 協勤彙整（monthly）
+    const monthly = data.monthly || {};
+    const dutyTotal = sumObj(monthly);
+    const dutyJ = judgeDuty(y,m,monthly);
+
+    $('#ruleDuty').text(`每月 ≥ ${RULES.duty.minMonthlyHours} 小時或近 ${RULES.display.recentMonths} 月合計 ≥ ${RULES.duty.rolling.minSum} 小時`);
+    $('#dutyHoursTotal').text(dutyTotal);
+    $('#ymRoc').text(fmtYm(y,m));
+    $('#monthHours').text(dutyJ.mon);
+    $('#dutyStatus').toggleClass('ok',dutyJ.ok).toggleClass('warn',!dutyJ.ok).text(dutyJ.ok?'正常':'未達標');
+
+    // 最近 N 月清單
+    const keys = recentKeys(y,m,RULES.display.recentMonths);
+    const lines = keys.map(k=>`${k}：${Number(monthly[k]||0)} 小時`).join('\n');
+    $('#recentN').text(`最近 ${RULES.display.recentMonths} 月（含本月）累計：${dutyJ.sum} 小時\n\n${lines}`);
+
+    // 年資（若 data 有「入隊日期」則自動算）
+    const svYears = calcServiceYearsByJoin(p['入隊日期']);
+    $('#serviceYears').text(svYears==null ? '—' : svYears);
+    $('#joinAccHours').text(dutyTotal); // 若你有「入隊累積時數」欄位，改讀那個
+
+    // 常年訓練（目前沒有後端資料就先以 0 顯示）
+    const attend=Number(p['全年訓練出席']||0), leave=Number(p['全年訓練請假']||0), absent=Number(p['全年訓練缺席']||0);
+    $('#trainingYear').text(new Date().getFullYear());
+    $('#trainingAttend').text(attend);
+    $('#trainingLeave').text(leave);
+    $('#trainingAbsent').text(absent);
+    const trainOK = judgeTraining(attend);
+    $('#trainingStatus').toggleClass('ok',trainOK).toggleClass('warn',!trainOK).text(trainOK?'正常':'未達標');
+    $('#ruleTraining').text(`全年訓練應達 ${RULES.training.minAttendPerYear} 次`);
+
+    // 班程（依 data 是否有填值）
+    const basicDone = !!p['新進人員基本訓練'];
+    const cadreDone = !!p['基礎幹部講習班'];
+    $('#courseBasicState').toggleClass('ok',basicDone).toggleClass('warn',!basicDone).text(basicDone?'已完成':'未完成');
+    $('#courseCadreState').toggleClass('ok',cadreDone).toggleClass('warn',!cadreDone).text(cadreDone?'已完成':'未完成');
+    $('#ruleCourseBasic').text(`基本訓練 ${RULES.courses.basic.mustFinishWithinYears} 年內完成`);
+    $('#ruleCourseCadre').text(`幹部講習滿 ${RULES.courses.cadre.eligibleAfterYears} 年後、${RULES.courses.cadre.mustFinishWithinYears} 年內完成`);
+
+    // 獎項判定（用年資 + 協勤累計）
+    const aw = judgeAwards(svYears??0, dutyTotal, { gotPhoenixWithinYears:false, gotEMSWithinYears:false });
+    $('#awardPhoenix').toggleClass('ok',aw.phoenixOK).toggleClass('warn',!aw.phoenixOK).text(aw.phoenixOK?'符合資格':'未符合');
+    $('#awardEMS').toggleClass('ok',aw.emsOK).toggleClass('warn',!aw.emsOK).text(aw.emsOK?'符合資格':'未符合');
+    $('#ruleAwardPhoenix').text(`鳳凰獎：年資≥${RULES.awards.phoenix.minServiceYears}、時數≥${RULES.awards.phoenix.minTotalHours}`);
+    $('#ruleAwardEMS').text(`救護志工菁英：年資≥${RULES.awards.emsElite.minServiceYears}`);
+
+  } catch(err){
+    console.error(err);
+    $('#emptyHint').removeClass('d-none').text('查無此人或資料讀取失敗');
+    $('#cardSummary,#cardCourses,#cardAwards,#cardMonthly').addClass('d-none').removeData('name');
+  } finally{
+    $('#btnSearch').prop('disabled', false).text('查詢');
+  }
+}
+
+/* =========================
+   綁定與初始化
+   ========================= */
+$('#btnSearch').on('click', ()=>render($('#txtName').val()));
+$('#txtName').on('keydown', e=>{ if(e.key==='Enter') render($('#txtName').val()); });
+$(function(){ initYM(); });
+</script>
 </body>
 </html>
