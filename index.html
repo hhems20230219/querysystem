@@ -52,19 +52,23 @@
           <input id="txtName" type="text" class="form-control" placeholder="輸入姓名（支援部分比對）">
         </div>
         <div class="col-md-3">
-          <button id="btnSearch" class="btn btn-primary w-100">查詢</button>
+          <button id="btnSearch" class="btn btn-primary w-100">
+            <span class="d-inline-flex align-items-center gap-2">
+              <span class="label-text">查詢</span>
+            </span>
+          </button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- 個人資料（新增：只顯示 單位／職稱／姓名） -->
+  <!-- 個人資料（只顯示：單位／職稱／姓名） -->
   <div class="card card-soft mb-4 d-none" id="cardPerson">
     <div class="card-body">
       <div class="section-title keyline">個人資料</div>
-      <div class="kv"><div class="label">單位：</div><div id="p_unit">—</div></div>
-      <div class="kv"><div class="label">職稱：</div><div id="p_title">—</div></div>
-      <div class="kv"><div class="label">姓名：</div><div id="p_name">—</div></div>
+      <div class="kv"><div class="label">單位：</div><div id="perUnit">—</div></div>
+      <div class="kv"><div class="label">職稱：</div><div id="perTitle">—</div></div>
+      <div class="kv"><div class="label">姓名：</div><div id="perName">—</div></div>
     </div>
   </div>
 
@@ -76,7 +80,7 @@
       <div class="kv">
         <div class="label">協勤時數：</div>
         <div>
-          <span id="dutyHoursTotal">0</span> 小時； <span id="dutyStatus" class="ok">正常</span>
+          <span id="dutyHoursTotal">0</span> 小時； <span id="dutyStatus" class="ok">—</span>
           <span id="ruleDuty" class="rule ms-2"></span>
         </div>
       </div>
@@ -85,7 +89,7 @@
         <div class="label">常年訓練：</div>
         <div>
           <span id="trainingYear">—</span> 年 出席 <span id="trainingAttend">0</span> 次、請假 <span id="trainingLeave">0</span> 次、缺席 <span id="trainingAbsent">0</span> 次；
-          <span id="trainingStatus" class="ok">正常</span>
+          <span id="trainingStatus" class="ok">—</span>
           <span id="ruleTraining" class="rule ms-2"></span>
         </div>
       </div>
@@ -116,7 +120,6 @@
         </div>
       </div>
 
-      <!-- ★ 新增：初級幹部講習班（第三列） -->
       <div class="kv">
         <div class="label">初級幹部講習班：</div>
         <div>
@@ -124,7 +127,6 @@
           <span id="ruleCourseJunior" class="rule ms-2"></span>
         </div>
       </div>
-      <!-- ★ 結束新增 -->
     </div>
   </div>
 
@@ -174,6 +176,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
       </div>
       <div class="modal-body">
+        <!-- 動態產生 -->
         <div id="rulesDoc"></div>
       </div>
       <div class="modal-footer">
@@ -185,7 +188,7 @@
 
 <script>
 /* =========================
-   參數規則（只在 Script 可調）
+   規則（你可調）
    ========================= */
 const RULES = {
   duty: { minMonthlyHours: 4, rolling: { months: 6, minSum: 24 } },
@@ -199,20 +202,19 @@ const RULES = {
     cadre:  { eligibleAfterYears: 1, mustFinishWithinYears: 3 },
     junior: { note: '依單位規範，如有年限請自訂' }
   },
-  serviceYears: { calcMode: 'auto' },
   display: { recentMonths: 6, rocYear: true }
 };
 
 /* =========================
-   法規條文（唯讀展示）
+   法規（唯讀展示）
    ========================= */
 const LEGAL = {
   titles: {
     duty: "義勇消防組織編組訓練演習服勤辦法 第 15 條（示例）",
     training: "義勇消防組織編組訓練演習服勤辦法 第 12 條（示例）",
     courses: {
-      basic:  "義勇消防組織編組訓練演習服勤辦法 第 7 條（示例）",
-      cadre:  "義勇消防組織編組訓練演習服勤辦法 第 8 條（示例）",
+      basic:  "義勇消防… 第 7 條（示例）",
+      cadre:  "義勇消防… 第 8 條（示例）",
       junior: "（單位內規）"
     },
     awards: {
@@ -232,89 +234,73 @@ const LEGAL = {
 };
 
 /* =========================
-   資料來源設定（換成你的 /exec）
+   你的 Apps Script Web App /exec
    ========================= */
-const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzdSOlPTYxXhWbIls1EUJ7NhjIY-MW4H6WcKcf3BfD4WagbKxe42lQxltqmw6XIPPJp/exec'; // ← 改成你的
+const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzZWSq9zUZFlw1e11yF_202QRHATj5Yq9jfD6oG9VfdCCKN01HVQGomMEJvIEUhjVRS/exec'; // ← 改成你的
 
-/* 全域狀態 */
-let CURRENT_PERSON = null;   // 〈人員資料〉單筆物件（或 false 表示查無）
-let CURRENT_HOURS  = null;   // { name, months:{'114-06':4,...}, total }
-let __PENDING__ = 0;         // 載入中計數（for spinner）
+/* =========================
+   全域狀態
+   ========================= */
+let CURRENT_PERSON = null;    // 人員資料
+let CURRENT_HOURS  = null;    // 時數整列
+const TRAIN_CACHE  = {};      // 以 ROC 年為 key：{ months:{}, counts:{attend,leave,absent} }
+let LOADING_COUNT  = 0;       // 控制按鈕 spinner
 
 /* =========================
    小工具
    ========================= */
 const pad2 = n => (n<10?`0${n}`:`${n}`);
 const toRoc = y => y - 1911;
-const ym = (y,m)=>`${y}-${pad2(m)}`;
+const toRocYM = (y,m)=> `${String(toRoc(y)).padStart(3,'0')}-${pad2(m)}`;
 const fmtYm = (y,m)=> RULES.display.rocYear ? `${toRoc(y)}年 ${pad2(m)}月` : `${y}年 ${pad2(m)}月`;
-function recentKeys(y,m,n){ const a=[]; let yy=y,mm=m; for(let i=0;i<n;i++){ a.unshift(ym(yy,mm)); mm--; if(mm===0){ mm=12; yy--; } } return a; }
+function recentGyYms(y,m,n){ const a=[]; let yy=y,mm=m; for(let i=0;i<n;i++){ a.unshift(`${yy}-${pad2(mm)}`); mm--; if(mm===0){ mm=12; yy--; } } return a; }
+function gyToRocYm(gy){ const [y,m]=gy.split('-').map(Number); return toRocYM(y,m); }
 
 function jsonp(url, cb){
   const cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random()*1e6);
   window[cbName] = (resp)=>{ try{ cb(resp); } finally{ delete window[cbName]; } };
   const s = document.createElement('script');
   s.src = url + (url.includes('?')?'&':'?') + 'callback=' + cbName;
-  s.onerror = ()=> cb({ ok:false, error:'讀取失敗（可能是 URL 或權限）' });
+  s.onerror = ()=> cb({ ok:false, error:'讀取失敗（可能是 URL 或權限問題）' });
   document.body.appendChild(s);
 }
 function getField(o, keys){ for(const k of keys){ if(o && o[k]!=null && String(o[k]).trim()!=='') return String(o[k]).trim(); } return ''; }
 function getNum(o, keys){ const s=getField(o,keys); const n=Number(String(s).replace(/[, ]/g,'')); return isFinite(n)?n:0; }
 
-/* 解析「素行調查時間/素行梯次」→ Date（支援民國/西元、年或年月） */
-function parseConductDate(str){
-  if(!str) return null;
-  let s = String(str).trim();
-  // e.g. 2000/02、2003-02、114/09、114-9、2020
-  const m = s.match(/^(\d{2,4})[\/\-.年]?\s*(\d{1,2})?(?:[\/\-.日]?\s*(\d{1,2}))?$/);
+/* 日期解析：支援 2000/02、2000、114/02、114（ROC 年） */
+function parseYyMmToDate(s){
+  const m = String(s||'').trim().match(/^(\d{3,4})[\/\-.年]?\s*(\d{1,2})?$/);
   if(!m) return null;
-  let y = parseInt(m[1],10);
-  let mo = parseInt(m[2]||'1',10);
-  let d  = parseInt(m[3]||'1',10);
-  // 小於1911 視為民國年
-  if(y < 1911) y += 1911;
-  return new Date(y, Math.max(0,mo-1), Math.max(1,d));
+  let y = Number(m[1]);
+  let mm = m[2] ? Number(m[2]) : 1;
+  if(String(y).length===3) y += 1911; // ROC → 西元
+  if(mm<1||mm>12) mm=1;
+  return new Date(y, mm-1, 1);
 }
 
-/* ROC/西元 換算（先宣告，供判定使用） */
-const toRocYM = (y,m)=> `${String(toRoc(y)).padStart(3,'0')}-${pad2(m)}`;
-function gyToRocYm(gy){ const [y,m]=gy.split('-').map(Number); return toRocYM(y,m); }
-
-/* 服務年資（以「素行調查」欄位為準；找不到再退回入隊日期/年資欄） */
+/* 服務年資：優先用「素行調查」時間，其次入隊日期，再不然就吃既有欄位數字 */
 function calcServiceYearsFromConduct(p){
-  const sConduct = getField(p, ['素行調查時間','素行調查','素行梯次','素行','素行日期']);
-  let base = parseConductDate(sConduct);
-  if(!base){
-    // 退回入隊日期或年資欄
-    const sJoin = getField(p, ['入隊日期','到隊日期','入隊日','到隊日','入隊']);
-    if(sJoin) base = parseConductDate(sJoin);
-  }
-  if(base){
-    const now = new Date();
-    let y = now.getFullYear() - base.getFullYear();
-    const m = now.getMonth() - base.getMonth();
-    if(m < 0 || (m===0 && now.getDate() < base.getDate())) y--;
-    return Math.max(0, y);
+  const cand = getField(p, ['素行調查','素行調查時間','素行梯次']) ||
+               getField(p, ['入隊日期','到隊日期','入隊日','到隊日','入隊']);
+  if(cand){
+    const d = parseYyMmToDate(cand);
+    if(d){
+      const now=new Date();
+      let y=now.getFullYear()-d.getFullYear();
+      const m=now.getMonth()-d.getMonth();
+      if(m<0 || (m===0 && now.getDate()<d.getDate())) y--;
+      return Math.max(0,y);
+    }
   }
   return getNum(p, ['服務年資','年資']) || 0;
 }
 
-/* 協勤判定（用 ROC 月欄） */
-function judgeDuty(y,m,hr){
-  const ymRoc = toRocYM(y,m);
-  const mon = Number((hr.months||{})[ymRoc]||0);
-  const keysGy = recentKeys(y,m,RULES.display.recentMonths).map(k=>gyToRocYm(k));
-  const sum = keysGy.reduce((s,k)=>s+(Number((hr.months||{})[k]||0)),0);
-  const ok = (mon>=RULES.duty.minMonthlyHours) || (sum>=RULES.duty.rolling.minSum);
-  return { mon, sum, keysGy, ok };
-}
-
-/* 班程欄位判斷 */
+/* 班程顯示 */
 function asBoolDone(v){
   const s = String(v||'').trim();
   if(!s) return false;
   if(/已完成|完成|是|Y|yes|已結訓/i.test(s)) return true;
-  if(/^(\d{3,4})[\/\-.年]\s*\d{1,2}$/.test(s) || /^(\d{3,4})$/.test(s)) return true;
+  if(/^(\d{3,4})([\/\-.年]\s*\d{1,2})?$/.test(s)) return true;
   return false;
 }
 function courseLabelRaw(v){
@@ -325,36 +311,60 @@ function courseLabelRaw(v){
   return s;
 }
 
+/* 查詢按鈕 spinner 控制 */
+function beginLoading(){
+  LOADING_COUNT++;
+  const $btn = $('#btnSearch');
+  $btn.prop('disabled', true);
+  if($btn.find('.spinner-border').length===0){
+    $btn.find('.label-text').before('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>');
+    $btn.find('.label-text').text('查詢中…');
+  }
+}
+function endLoading(){
+  LOADING_COUNT = Math.max(0, LOADING_COUNT-1);
+  if(LOADING_COUNT===0){
+    const $btn = $('#btnSearch');
+    $btn.prop('disabled', false);
+    $btn.find('.spinner-border').remove();
+    $btn.find('.label-text').text('查詢');
+  }
+}
+
 /* =========================
    年月 UI
    ========================= */
 function initYM(){
-  const t = new Date();
-  const y = t.getFullYear();
-  const m = t.getMonth() + 1;
-
-  const years = [y-2, y-1, y, y+1];
-  $('#selYear').empty();
-  $('#selMonth').empty();
-
-  years.forEach(yy => {
-    $('#selYear').append(
-      `<option value="${yy}">${yy}${RULES.display.rocYear ? `（民國${toRoc(yy)}年）` : ''}</option>`
-    );
-  });
-
-  // 這行原本多了一個「)」，導致整個 script 掛掉
-  for (let i = 1; i <= 12; i++) {
-    $('#selMonth').append(`<option value="${i}">${pad2(i)}月</option>`);
-  }
-
-  $('#selYear').val(y);
-  $('#selMonth').val(m);
-  $('#rocBadge').text(RULES.display.rocYear ? `民國 ${toRoc(y)} 年` : `${y} 年`);
+  const t=new Date(), y=t.getFullYear(), m=t.getMonth()+1;
+  const years=[y-2,y-1,y,y+1];
+  $('#selYear').empty(); $('#selMonth').empty();
+  years.forEach(yy=>$('#selYear').append(`<option value="${yy}">${yy}${RULES.display.rocYear?`（民國${toRoc(yy)}年）`:''}</option>`));
+  for(let i=1;i<=12;i++) $('#selMonth').append(`<option value="${i}">${pad2(i)}月</option>`);
+  $('#selYear').val(y); $('#selMonth').val(m);
+  $('#rocBadge').text(RULES.display.rocYear?`民國 ${toRoc(y)} 年`:`${y} 年`);
 }
+function curYM(){ return { y:+$('#selYear').val(), m:+$('#selMonth').val() }; }
+$('#selYear,#selMonth').on('change', ()=>{
+  const {y}=curYM();
+  $('#rocBadge').text(RULES.display.rocYear?`民國 ${toRoc(y)} 年`:`${y} 年`);
+  if(CURRENT_PERSON && CURRENT_HOURS){
+    // 年切換時，需要同步抓該 ROC 年訓練統計
+    const rocY = toRoc(y);
+    if(!TRAIN_CACHE[rocY]){
+      beginLoading();
+      jsonp(`${GAS_WEB_APP_URL}?fn=training_row&name=${encodeURIComponent(getField(CURRENT_PERSON, ['姓名']))}&y=${rocY}`, (res)=>{
+        if(res && res.ok){ TRAIN_CACHE[rocY] = res; }
+        endLoading();
+        renderUI();
+      });
+    }else{
+      renderUI();
+    }
+  }
+});
 
 /* =========================
-   規則 Modal（動態渲染）
+   模態框：規則與法規條文
    ========================= */
 function buildRulesDoc(){
   const P = RULES.awards.phoenix;
@@ -366,6 +376,7 @@ function buildRulesDoc(){
         <br>${LEGAL.excerpts.duty || ""}
       </div>
     </div>
+
     <div class="mb-3">
       <h6>常年訓練 <small class="text-secondary">（${LEGAL.titles.training}）</small></h6>
       <div class="text-secondary">
@@ -373,8 +384,9 @@ function buildRulesDoc(){
         <br>${LEGAL.excerpts.training || ""}
       </div>
     </div>
+
     <div class="mb-3">
-      <h6>班程 <small class="text-secondary">（基本：${LEGAL.titles.courses.basic}；基礎幹部：${LEGAL.titles.courses.cadre}；初級幹部：${LEGAL.titles.courses.junior}）</small></h6>
+      <h6>班程 <small class="text-secondary">（基本：${LEGAL.titles.courses.basic}；基礎幹部：${LEGAL.titles.cadre}；初級幹部：${LEGAL.titles.junior}）</small></h6>
       <div class="text-secondary">
         基本訓練 <b>${RULES.courses.basic.mustFinishWithinYears}</b> 年內完成；
         幹部講習滿 <b>${RULES.cadre?.eligibleAfterYears || RULES.courses.cadre.eligibleAfterYears}</b> 年後、<b>${RULES.courses.cadre.mustFinishWithinYears}</b> 年內完成；
@@ -382,31 +394,18 @@ function buildRulesDoc(){
         <br>${LEGAL.excerpts.basic || ""}｜${LEGAL.excerpts.cadre || ""}｜${LEGAL.excerpts.junior || ""}
       </div>
     </div>
+
     <div class="mb-3">
       <h6>獎項 <small class="text-secondary">（鳳凰獎：${LEGAL.titles.awards.phoenix}；救護志工菁英：${LEGAL.titles.awards.ems}）</small></h6>
       <div class="text-secondary">
-        鳳凰獎：年資 ≥ <b>${P.minServiceYears}</b>、時數 ≥ <b>${P.minTotalHours}</b>；
-        救護志工菁英：年資 ≥ <b>${RULES.awards.emsElite.minServiceYears}</b> 年。
+        鳳凰獎：年資 ≥ <b>${P.minServiceYears}</b>、時數 ≥ <b>${P.minTotalHours}</b>；救護志工菁英：年資 ≥ <b>${RULES.awards.emsElite.minServiceYears}</b> 年。
         <br>${LEGAL.excerpts.phoenix || ""} ${LEGAL.excerpts.ems ? "｜"+LEGAL.excerpts.ems : ""}
       </div>
-    </div>`;
+    </div>
+  `;
   $('#rulesDoc').html(html);
 }
 $('#rulesModal').on('show.bs.modal', buildRulesDoc);
-
-/* =========================
-   Spinner 狀態控制（查詢時）
-   ========================= */
-function setLoading(on){
-  const $btn = $('#btnSearch');
-  if(on){
-    if(!$btn.data('orig')) $btn.data('orig', $btn.html());
-    $btn.prop('disabled', true)
-        .html('<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>讀取中…');
-  }else{
-    $btn.prop('disabled', false).html($btn.data('orig') || '查詢');
-  }
-}
 
 /* =========================
    查詢（打 GAS）＋渲染
@@ -422,34 +421,41 @@ function searchAndRender(nameInput){
 
   CURRENT_PERSON = null;
   CURRENT_HOURS  = null;
-  __PENDING__ = 2;
-  setLoading(true);
+  Object.keys(TRAIN_CACHE).forEach(k=> delete TRAIN_CACHE[k]); // 清 cache
 
-  // 人員資料
+  beginLoading();
   jsonp(`${GAS_WEB_APP_URL}?fn=person&name=${encodeURIComponent(key)}`, res=>{
     CURRENT_PERSON = (res && res.ok && res.row) ? res.row : false;
-    doneOne();
+    endLoading();
+    maybeRenderAfterFetch();
   });
-  // 該人時數整列
+
+  beginLoading();
   jsonp(`${GAS_WEB_APP_URL}?fn=hours_row&name=${encodeURIComponent(key)}`, res=>{
     CURRENT_HOURS = (res && res.ok) ? res : { months:{}, total:0, name:key };
-    doneOne();
+    endLoading();
+    maybeRenderAfterFetch();
+  });
+
+  // 訓練報表（以目前選到的 ROC 年抓一次；切換年會再抓）
+  const {y} = curYM(); const rocY = toRoc(y);
+  beginLoading();
+  jsonp(`${GAS_WEB_APP_URL}?fn=training_row&name=${encodeURIComponent(key)}&y=${rocY}`, res=>{
+    if(res && res.ok) TRAIN_CACHE[rocY] = res;
+    endLoading();
+    maybeRenderAfterFetch();
   });
 }
-function doneOne(){
-  __PENDING__--;
-  if(__PENDING__<=0){
-    setLoading(false);
-    maybeRender();
-  }
-}
-function maybeRender(){
+
+function maybeRenderAfterFetch(){
+  // 三路請求至少要先跑完 person + hours；訓練可以晚到（有 cache 才更新）
+  if(CURRENT_PERSON === null || CURRENT_HOURS === null) return;
   if(CURRENT_PERSON === false){
     $('#cardPerson,#cardSummary,#cardCourses,#cardAwards,#cardMonthly').addClass('d-none');
     $('#emptyHint').removeClass('d-none').text('查無此人，請重新輸入');
     return;
   }
-  if(CURRENT_PERSON && CURRENT_HOURS) renderUI();
+  renderUI();
 }
 
 function renderUI(){
@@ -457,82 +463,88 @@ function renderUI(){
   const hr = CURRENT_HOURS;
   const {y,m} = curYM();
 
-  /* 個人資料卡 */
-  $('#p_unit').text(getField(me, ['單位']) || '—');
-  $('#p_title').text(getField(me, ['職稱']) || '—');
-  $('#p_name').text(getField(me, ['姓名']) || '—');
+  // 個人資料卡
+  $('#perUnit').text(getField(me, ['單位']) || '—');
+  $('#perTitle').text(getField(me, ['職稱']) || '—');
+  $('#perName').text(getField(me, ['姓名']) || '—');
   $('#cardPerson').removeClass('d-none');
 
-  /* 協勤：合計、本月、近 N 月 */
-  const dutyTotal = Number(hr.total||0);
-  $('#dutyHoursTotal').text(dutyTotal);
-  const j = judgeDuty(y,m,hr);
-  $('#ymRoc').text(fmtYm(y,m));
-  $('#monthHours').text(j.mon);
-  $('#dutyStatus').toggleClass('ok',j.ok).toggleClass('warn',!j.ok).text(j.ok?'正常':'未達標');
-  $('#ruleDuty').text(`每月 ≥ ${RULES.duty.minMonthlyHours} 小時或近 ${RULES.display.recentMonths} 月合計 ≥ ${RULES.duty.rolling.minSum} 小時`);
-  const lines = recentKeys(y,m,RULES.display.recentMonths).map(k=>{
-    const v = Number((hr.months||{})[gyToRocYm(k)]||0);
-    return `${k}：${v} 小時`;
-  }).join('\n');
-  $('#recentN').text(`最近 ${RULES.display.recentMonths} 月（含本月）累計：${j.sum} 小時\n\n${lines}`);
+  // 協勤（合計／本月／近 6 月）
+  const rocYm = toRocYM(y,m);
+  const total = Number(hr.total||0);
+  const gyList = recentGyYms(y,m,RULES.display.recentMonths);
+  const sumRecent = gyList.reduce((s,gy)=> s + Number((hr.months||{})[gyToRocYm(gy)]||0), 0);
+  const monHours = Number((hr.months||{})[rocYm]||0);
+  const dutyOK = (monHours>=RULES.duty.minMonthlyHours) || (sumRecent>=RULES.duty.rolling.minSum);
 
-  /* 常年訓練（無則 0） */
-  const thisYear = new Date().getFullYear();
-  const att   = getNum(me, ['當年出席','訓練出席','出席次數']);
-  const leave = getNum(me, ['當年請假','訓練請假','請假次數']);
-  const abs   = getNum(me, ['當年缺席','訓練缺席','缺席次數']);
-  $('#trainingYear').text(thisYear);
-  $('#trainingAttend').text(att);
+  $('#dutyHoursTotal').text(total);
+  $('#ymRoc').text(fmtYm(y,m));
+  $('#monthHours').text(monHours);
+  $('#dutyStatus').toggleClass('ok',dutyOK).toggleClass('warn',!dutyOK).text(dutyOK?'正常':'未達標');
+  $('#ruleDuty').text(`每月 ≥ ${RULES.duty.minMonthlyHours} 小時或近 ${RULES.display.recentMonths} 月合計 ≥ ${RULES.duty.rolling.minSum} 小時`);
+
+  const lines = gyList.map(gy=>{
+    const v = Number((hr.months||{})[gyToRocYm(gy)]||0);
+    return `${gy}：${v} 小時`;
+  }).join('\n');
+  $('#recentN').text(`最近 ${RULES.display.recentMonths} 月（含本月）累計：${sumRecent} 小時\n\n${lines}`);
+
+  // 常年訓練（優先用訓練報表該 ROC 年統計；沒有就 0）
+  const rocY = toRoc(y);
+  const tr = TRAIN_CACHE[rocY];
+  const attend = tr?.counts?.attend || 0;
+  const leave  = tr?.counts?.leave  || 0;
+  const absent = tr?.counts?.absent || 0;
+  $('#trainingYear').text(y);
+  $('#trainingAttend').text(attend);
   $('#trainingLeave').text(leave);
-  $('#trainingAbsent').text(abs);
-  const trainOK = att >= RULES.training.minAttendPerYear;
+  $('#trainingAbsent').text(absent);
+  const trainOK = attend >= RULES.training.minAttendPerYear;
   $('#trainingStatus').toggleClass('ok',trainOK).toggleClass('warn',!trainOK).text(trainOK?'正常':'未達標');
   $('#ruleTraining').text(`全年訓練應達 ${RULES.training.minAttendPerYear} 次`);
 
-  /* 服務年資（改用：素行調查時間） */
+  // 服務年資（用素行調查/素行梯次 或 入隊日期）
   const serviceYears = calcServiceYearsFromConduct(me);
   $('#serviceYears').text(serviceYears);
 
-  /* 入隊累積時數：以 hours 合計為主；人員表若有覆蓋則用人員表 */
-  let acc = dutyTotal;
+  // 入隊累積時數（優先用 hours 合計；人員表若有數值就覆蓋）
+  let acc = total;
   const accFromPeople = getNum(me, ['入隊累積時數','累積時數','總時數']);
   if(accFromPeople>0) acc = accFromPeople;
   $('#joinAccHours').text(acc);
 
-  /* 班程（3 列） */
+  // 班程（三列，吃人員欄位）
   const basic  = getField(me, ['新進人員基本訓練']);
   const cadre  = getField(me, ['基礎幹部講習班']);
   const junior = getField(me, ['初級幹部講習班']);
-  $('#courseBasicState') .toggleClass('ok',asBoolDone(basic)).toggleClass('warn',!asBoolDone(basic)).text(courseLabelRaw(basic||''));
-  $('#courseCadreState') .toggleClass('ok',asBoolDone(cadre)).toggleClass('warn',!asBoolDone(cadre)).text(courseLabelRaw(cadre||''));
+  $('#courseBasicState') .toggleClass('ok',asBoolDone(basic)) .toggleClass('warn',!asBoolDone(basic)) .text(courseLabelRaw(basic||''));
+  $('#courseCadreState') .toggleClass('ok',asBoolDone(cadre)) .toggleClass('warn',!asBoolDone(cadre)) .text(courseLabelRaw(cadre||''));
   $('#courseJuniorState').toggleClass('ok',asBoolDone(junior)).toggleClass('warn',!asBoolDone(junior)).text(courseLabelRaw(junior||''));
   $('#ruleCourseBasic').text(`基本訓練 ${RULES.courses.basic.mustFinishWithinYears} 年內完成`);
-  $('#ruleCourseCadre').text(`幹部講習滿 ${RULES.cadre?.eligibleAfterYears || RULES.courses.cadre.eligibleAfterYears} 年後、${RULES.courses.cadre.mustFinishWithinYears} 年內完成`);
+  $('#ruleCourseCadre').text(`幹部講習滿 ${RULES.courses.cadre.eligibleAfterYears} 年後、${RULES.courses.cadre.mustFinishWithinYears} 年內完成`);
   $('#ruleCourseJunior').text(RULES.courses.junior.note || '');
 
-  /* 獎項（欄位若有年份→已得獎；否則依規則推） */
-  const phoenixVal = getField(me, ['鳳凰獎']);
-  const emsVal     = getField(me, ['全國救護志工菁英','救護志工菁英']);
+  // 獎項（有年份顯示「已得獎（年）」；否則依規則判斷）
   function awardYearLabel(v){
-    const s=String(v||'').trim(); if(!s) return null;
+    const s=String(v||'').trim();
+    if(!s) return null;
     const y = s.match(/^\d{3,4}$/) ? s : (s.match(/(19|20)?\d{2}/)?.[0] || null);
     return y || null;
   }
-  const phYear = awardYearLabel(phoenixVal);
-  const emYear = awardYearLabel(emsVal);
+  const phYear = awardYearLabel(getField(me, ['鳳凰獎']));
+  const emYear = awardYearLabel(getField(me, ['全國救護志工菁英','救護志工菁英']));
   if(phYear){ $('#awardPhoenix').removeClass('warn').addClass('ok').text(`已得獎（${phYear}）`); }
   else{
-    const phOK = (serviceYears>=RULES.awards.phoenix.minServiceYears) && (acc>=RULES.awards.phoenix.minTotalHours);
-    $('#awardPhoenix').toggleClass('ok',phOK).toggleClass('warn',!phOK).text(phOK?'符合資格':'未符合');
+    const ok = (serviceYears>=RULES.awards.phoenix.minServiceYears) && (acc>=RULES.awards.phoenix.minTotalHours);
+    $('#awardPhoenix').toggleClass('ok',ok).toggleClass('warn',!ok).text(ok?'符合資格':'未符合');
   }
   if(emYear){ $('#awardEMS').removeClass('warn').addClass('ok').text(`已得獎（${emYear}）`); }
   else{
-    const emOK = (serviceYears>=RULES.awards.emsElite.minServiceYears);
-    $('#awardEMS').toggleClass('ok',emOK).toggleClass('warn',!emOK).text(emOK?'符合資格':'未符合');
+    const ok = (serviceYears>=RULES.awards.emsElite.minServiceYears);
+    $('#awardEMS').toggleClass('ok',ok).toggleClass('warn',!ok).text(ok?'符合資格':'未符合');
   }
 
-  /* 顯示所有卡片 */
+  // 顯示卡片
   $('#cardSummary,#cardCourses,#cardAwards,#cardMonthly').removeClass('d-none').data('name', getField(me,['姓名']));
 }
 
