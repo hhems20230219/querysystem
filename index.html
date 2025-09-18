@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <title>義消服務查詢（單人＋ROC 月時數報表）</title>
+  <title>義消服務查詢（只查本人）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <!-- Bootstrap 5 & jQuery（CDN） -->
@@ -16,186 +16,353 @@
     .card-soft { border:1px solid #e9ecef; }
     .section-title { font-weight:700; margin-bottom:.25rem; }
     .keyline { border-left:4px solid #0d6efd; padding-left:.75rem; }
-    .muted { color:#6c757d; }
-    .table-wrap { overflow:auto; background:#fff; border:1px solid #e9ecef; border-radius:.5rem; }
-    thead th { position:sticky; top:0; background:#f0f3f6; z-index:1; }
-    .w-12 { width:12rem; }
-    .mono { font-family:ui-monospace, Menlo, Consolas, monospace; }
+    .kv { display:flex; gap:.5rem; align-items:baseline; margin:.35rem 0; }
+    .label { width:12em; color:#6c757d; }
+    .ok { color:#0a8754; font-weight:700; }
+    .warn { color:#c92a2a; font-weight:800; }
+    .rule { color:#6c757d; font-size:.9rem; }
+    .mono { font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .w-18 { width:18rem; }
   </style>
 </head>
 <body>
 <div class="container py-4">
   <!-- Header -->
   <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
-    <h1 class="page-title h4 m-0">義消服務查詢</h1>
+    <div>
+      <h1 class="page-title h4 m-0">義消服務查詢（本人）</h1>
+      <div class="text-secondary" id="whoami"></div>
+    </div>
     <div class="d-flex align-items-center gap-2">
-      <span class="text-secondary">查詢 ROC 年月：</span>
-      <select id="selYear" class="form-select form-select-sm w-12"></select>
-      <select id="selMonth" class="form-select form-select-sm w-12"></select>
-      <button id="btnLoadHours" class="btn btn-outline-primary btn-sm">載入時數報表</button>
+      <span class="text-secondary">查詢年月：</span>
+      <select id="selYear" class="form-select form-select-sm w-18"></select>
+      <select id="selMonth" class="form-select form-select-sm w-18"></select>
+      <span id="rocBadge" class="badge text-bg-light"></span>
+      <button class="btn btn-outline-secondary btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#rulesModal">
+        規則與法規條文
+      </button>
     </div>
   </div>
 
-  <!-- 查詢一個人 -->
-  <div class="card card-soft mb-4">
+  <!-- 查詢結果：協勤/訓練/年資/累積 -->
+  <div class="card card-soft mb-4" id="cardSummary">
     <div class="card-body">
-      <div class="row g-3 align-items-end">
-        <div class="col-md-4">
-          <label class="form-label">姓名（支援部分比對）</label>
-          <input id="txtName" type="text" class="form-control" placeholder="例如：黃意婷、宇樺…">
+      <div class="section-title keyline">查詢結果</div>
+
+      <div class="kv">
+        <div class="label">協勤時數：</div>
+        <div>
+          <span id="dutyHoursTotal">0</span> 小時； <span id="dutyStatus" class="ok">正常</span>
+          <span id="ruleDuty" class="rule ms-2"></span>
         </div>
-        <div class="col-md-3">
-          <button id="btnSearch" class="btn btn-primary w-100">查個人</button>
+      </div>
+
+      <div class="kv">
+        <div class="label">常年訓練：</div>
+        <div>
+          <span id="trainingYear">—</span> 年 出席 <span id="trainingAttend">0</span> 次、請假 <span id="trainingLeave">0</span> 次、缺席 <span id="trainingAbsent">0</span> 次；
+          <span id="trainingStatus" class="ok">正常</span>
+          <span id="ruleTraining" class="rule ms-2"></span>
         </div>
-        <div class="col-md-5 text-end">
-          <span id="txtPeopleUpdated" class="muted"></span>
+      </div>
+
+      <div class="kv"><div class="label">服務年資：</div><div><span id="serviceYears">0</span> 年</div></div>
+      <div class="kv"><div class="label">入隊累積時數：</div><div><span id="joinAccHours">0</span> 小時</div></div>
+    </div>
+  </div>
+
+  <!-- 班程 -->
+  <div class="card card-soft mb-4" id="cardCourses">
+    <div class="card-body">
+      <div class="section-title keyline">班程</div>
+
+      <div class="kv">
+        <div class="label">新進人員基本訓練：</div>
+        <div>
+          <span id="courseBasicState" class="ok">—</span>
+          <span id="ruleCourseBasic" class="rule ms-2"></span>
+        </div>
+      </div>
+
+      <div class="kv">
+        <div class="label">基礎幹部講習班：</div>
+        <div>
+          <span id="courseCadreState" class="ok">—</span>
+          <span id="ruleCourseCadre" class="rule ms-2"></span>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- 個人資料（只顯示一筆，非整表） -->
-  <div class="card card-soft mb-4 d-none" id="cardPerson">
+  <!-- 獎項 -->
+  <div class="card card-soft mb-4" id="cardAwards">
     <div class="card-body">
-      <div class="section-title keyline">個人資料</div>
-      <div id="personBox" class="row row-cols-1 row-cols-md-2 g-3"></div>
+      <div class="section-title keyline">獎項</div>
+
+      <div class="kv">
+        <div class="label">全國義消楷模（鳳凰獎）：</div>
+        <div>
+          <span id="awardPhoenix" class="ok">—</span>
+          <span id="ruleAwardPhoenix" class="rule ms-2"></span>
+        </div>
+      </div>
+
+      <div class="kv">
+        <div class="label">全國救護志工菁英：</div>
+        <div>
+          <span id="awardEMS" class="ok">—</span>
+          <span id="ruleAwardEMS" class="rule ms-2"></span>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- 指定 ROC 月份的時數報表 -->
-  <div class="card card-soft mb-5">
+  <!-- 每月協勤 -->
+  <div class="card card-soft mb-5" id="cardMonthly">
     <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <div class="section-title keyline mb-0">時數報表</div>
-        <span id="txtHoursUpdated" class="muted"></span>
+      <div class="section-title keyline">每月協勤時數</div>
+      <div class="kv"><div class="label">查詢年月：</div><div id="ymRoc">000年 00月</div></div>
+      <div class="kv"><div class="label">本月協勤時數：</div><div><span id="monthHours">0</span> 小時</div></div>
+      <pre id="recentN" class="mono bg-light p-3 border rounded small mb-0"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- 規則與法規條文 Modal（內容動態生成） -->
+<div class="modal fade" id="rulesModal" tabindex="-1" aria-labelledby="rulesModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 id="rulesModalLabel" class="modal-title">規則與法規條文</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
       </div>
-      <div class="table-wrap">
-        <table class="table table-sm table-hover align-middle mb-0" id="tblHours">
-          <thead><tr id="hoursHead"></tr></thead>
-          <tbody id="hoursBody"><tr><td class="text-muted p-3">尚未載入，請選 ROC 年月後按「載入時數報表」。</td></tr></tbody>
-        </table>
-      </div>
+      <div class="modal-body"><div id="rulesDoc"></div></div>
+      <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">關閉</button></div>
     </div>
   </div>
 </div>
 
 <script>
-/* ======= 必改：你的 Apps Script Web App URL（/exec） ======= */
-const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyZm1_4CE-IS5JSCHPFfeIKItb7hM5JZtJsFxK6QhVUldPEaW6RbvkmgAjzU8oCyi28/exec';
+/* =========================
+   基本設定（請改這裡）
+   ========================= */
+const GAS_WEB_APP_URL = 'PUT_YOUR_WEB_APP_URL_HERE'; // 你的 Apps Script /exec
+const SELF_NAME = '吳宇樺';                           // ← 改成你名字
+const ROLLING_MONTHS = 6;
 
-/* ======= ROC 年月 UI ======= */
-function pad2(n){ return n<10 ? ('0'+n) : ''+n; }
-function toRoc(y){ return y - 1911; }
-function rocYm(){ const y=+$('#selYear').val(), m=+$('#selMonth').val(); return `${pad3( toRoc(y) )}-${pad2(m)}`; }
-function pad3(n){ const s=''+n; return s.length>=3? s : ('000'+s).slice(-3); }
-
-function initYM(){
-  const t = new Date(), y = t.getFullYear(), m = t.getMonth() + 1;
-  const years = [y - 1, y, y + 1];
-
-  $('#selYear').empty();
-  $('#selMonth').empty();
-
-  years.forEach(yy => {
-    $('#selYear').append(`<option value="${yy}">民國 ${toRoc(yy)} 年</option>`);
-  });
-
-  for (let i = 1; i <= 12; i++) {
-    $('#selMonth').append(`<option value="${i}">${pad2(i)}月</option>`);
+/* =========================
+   規則（你可調）
+   ========================= */
+const RULES = {
+  duty: { minMonthlyHours: 4, rolling: { months: ROLLING_MONTHS, minSum: 24 } },
+  training: { minAttendPerYear: 12 },
+  awards: {
+    phoenix: { minServiceYears: 5, minTotalHours: 800, cooldownPhoenixYears: 5, cooldownEMSYears: 2 },
+    emsElite: { minServiceYears: 5 }
+  },
+  courses: { basic: { mustFinishWithinYears: 2 }, cadre: { eligibleAfterYears: 1, mustFinishWithinYears: 3 } },
+  display: { rocYear: true }
+};
+const LEGAL = {
+  titles: {
+    duty:"義勇消防組織編組訓練演習服勤辦法 第 15 條（示例）",
+    training:"義勇消防組織編組訓練演習服勤辦法 第 12 條（示例）",
+    courses:{ basic:"義勇消防… 第 7 條（示例）", cadre:"義勇消防… 第 8 條（示例）" },
+    awards:{ phoenix:"全國義消楷模評選要點 第 3 點（示例）", ems:"救護志工菁英評選要點 第 2 點（示例）" }
   }
+};
 
-  $('#selYear').val(y);
-  $('#selMonth').val(m);
+/* =========================
+   小工具
+   ========================= */
+const pad2 = n => (n<10?`0${n}`:`${n}`);
+const pad3 = n => (''+n).padStart(3,'0');
+const toRoc = y => y - 1911;
+const toRocYM = (y,m)=> `${pad3(toRoc(y))}-${pad2(m)}`;
+const toGyYm  = (y,m)=> `${y}-${pad2(m)}`;
+function recentGyYms(y,m,n){ // 回傳近 n 個 "YYYY-MM"（含本月），由舊到新
+  const arr=[]; let yy=y, mm=m;
+  for(let i=0;i<n;i++){ arr.unshift(`${yy}-${pad2(mm)}`); mm--; if(mm===0){ mm=12; yy--; } }
+  return arr;
 }
-
-/* ======= JSONP 呼叫工具 ======= */
+function gyToRocYm(gy){ // "YYYY-MM" → "YYY-MM"
+  const [y,m] = gy.split('-').map(Number);
+  return toRocYM(y,m);
+}
 function jsonp(url, cb){
   const cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random()*1e6);
   window[cbName] = function(resp){ try{ cb(resp); } finally{ delete window[cbName]; } };
   const s = document.createElement('script');
   s.src = url + (url.includes('?')?'&':'?') + 'callback=' + cbName;
-  s.dataset.jsonp = '1';
   s.onerror = ()=> cb({ ok:false, error:'讀取失敗（可能是 URL 或權限問題）' });
   document.body.appendChild(s);
 }
-
-/* ======= 查一個人（fn=person） ======= */
-$('#btnSearch').on('click', loadPerson);
-$('#txtName').on('keydown', e=>{ if(e.key==='Enter') loadPerson(); });
-
-function loadPerson(){
-  const name = $('#txtName').val().trim();
-  if(!name){ alert('請輸入姓名（可部分字）'); return; }
-  $('#txtPeopleUpdated').text('載入中…');
-  jsonp(`${GAS_WEB_APP_URL}?fn=person&name=${encodeURIComponent(name)}&limit=1`, (res)=>{
-    if(!res || res.ok!==true || (res.rows||[]).length===0){
-      $('#cardPerson').addClass('d-none');
-      $('#txtPeopleUpdated').text(res && res.error ? `讀取失敗：${res.error}` : '查無此人');
-      return;
-    }
-    const row = res.rows[0], headers=res.headers||[];
-    // 只挑常用欄位顯示（其餘仍在 row，可依需要追加）
-    const fields = ['單位','職稱','姓名','性別','連絡電話','身分證字號','出生年月日','歲數','救護員級別','備註','素行梯次','新進人員基本訓練','基礎幹部講習班','初級幹部講習班'];
-    const html = fields.filter(f=>f in row).map(f=>{
-      const v = (row[f] ?? '').toString();
-      return `<div class="col">
-        <div class="border rounded p-2 bg-white">
-          <div class="text-secondary small">${f}</div>
-          <div class="fw-semibold">${escapeHtml(v || '—')}</div>
-        </div>
-      </div>`;
-    }).join('');
-    $('#personBox').html(html || `<div class="text-muted">此人無可顯示欄位</div>`);
-    $('#cardPerson').removeClass('d-none');
-    $('#txtPeopleUpdated').text(`更新時間：${res.updatedAt || '—'}`);
-  });
+function asBoolDone(v){
+  const s = String(v||'').trim();
+  return /已完成|完成|是|Y|yes|已結訓/i.test(s);
 }
-
-/* ======= 讀取 ROC 月份時數報表（fn=hours） ======= */
-$('#btnLoadHours').on('click', loadHours);
-
-function loadHours(){
-  const ym = rocYm(); // 例如 114-06
-  $('#txtHoursUpdated').text(`載入中…（${ym}）`);
-  $('#hoursHead').html(''); $('#hoursBody').html('<tr><td class="p-3 text-muted">載入中…</td></tr>');
-  jsonp(`${GAS_WEB_APP_URL}?fn=hours&ym=${encodeURIComponent(ym)}`, (res)=>{
-    if(!res || res.ok!==true){
-      $('#hoursHead').html(''); $('#hoursBody').html(`<tr><td class="p-3 text-danger">讀取失敗：${res && res.error ? escapeHtml(res.error) : '未知錯誤'}</td></tr>`);
-      $('#txtHoursUpdated').text('');
-      return;
-    }
-    // 表頭：姓名、<ym>、合計
-    const ymCol = res.ym;
-    $('#hoursHead').html(`<th>姓名</th><th class="text-end">${ymCol}</th><th class="text-end">合計</th>`);
-    // 內容
-    const rows = (res.rows||[]).map(r=>{
-      const n = r['姓名'] || '';
-      const v = Number(r[ymCol]||0);
-      const t = Number(r['合計']||0);
-      return `<tr>
-        <td>${escapeHtml(n)}</td>
-        <td class="text-end">${fmtHour(v)}</td>
-        <td class="text-end">${fmtHour(t)}</td>
-      </tr>`;
-    }).join('');
-    $('#hoursBody').html(rows || `<tr><td colspan="3" class="p-3 text-muted">本月無資料</td></tr>`);
-    $('#txtHoursUpdated').text(`更新時間：${res.updatedAt || '—'}，筆數：${res.count || 0}`);
-  });
-}
-
-/* ======= 小工具 ======= */
 function escapeHtml(str){
   return String(str).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 }
-function fmtHour(n){
-  const x = Number(n||0);
-  // 顯示到 0.5（若要兩位小數改：x.toFixed(2)）
-  return (Math.round(x*2)/2).toString();
+
+/* =========================
+   年月 UI
+   ========================= */
+function initYM(){
+  const t=new Date(), y=t.getFullYear(), m=t.getMonth()+1;
+  const years=[y-2,y-1,y,y+1];
+  $('#selYear').empty(); $('#selMonth').empty();
+  years.forEach(yy=>$('#selYear').append(`<option value="${yy}">${yy}（民國${toRoc(yy)}年）</option>`));
+  for(let i=1;i<=12;i++) $('#selMonth').append(`<option value="${i}">${pad2(i)}月</option>`);
+  $('#selYear').val(y); $('#selMonth').val(m);
+  $('#rocBadge').text(`民國 ${toRoc(y)} 年`);
+}
+function curYM(){ return { y:+$('#selYear').val(), m:+$('#selMonth').val() }; }
+$('#selYear,#selMonth').on('change', ()=>{
+  const {y}=curYM();
+  $('#rocBadge').text(`民國 ${toRoc(y)} 年`);
+  if(window.__SELF__) renderAll(); // 切月即時重算
+});
+
+/* =========================
+   建立「規則與法規條文」內容
+   ========================= */
+function buildRulesDoc(){
+  const P = RULES.awards.phoenix;
+  const html = `
+    <div class="mb-3">
+      <h6>協勤 <small class="text-secondary">（${LEGAL.titles.duty}）</small></h6>
+      <div class="text-secondary">每月 ≥ <b>${RULES.duty.minMonthlyHours}</b> 小時，或最近 <b>${RULES.duty.rolling.months}</b> 月合計 ≥ <b>${RULES.duty.rolling.minSum}</b> 小時。</div>
+    </div>
+    <div class="mb-3">
+      <h6>常年訓練 <small class="text-secondary">（${LEGAL.titles.training}）</small></h6>
+      <div class="text-secondary">全年訓練應達 <b>${RULES.training.minAttendPerYear}</b> 次。</div>
+    </div>
+    <div class="mb-3">
+      <h6>班程 <small class="text-secondary">（${LEGAL.titles.courses.basic}／${LEGAL.titles.courses.cadre}）</small></h6>
+      <div class="text-secondary">基本訓練 <b>${RULES.courses.basic.mustFinishWithinYears}</b> 年內完成；幹部講習滿 <b>${RULES.cadre?.eligibleAfterYears||RULES.courses.cadre.eligibleAfterYears}</b> 年後、<b>${RULES.courses.cadre.mustFinishWithinYears}</b> 年內完成。</div>
+    </div>
+    <div class="mb-3">
+      <h6>獎項 <small class="text-secondary">（鳳凰獎／救護志工菁英）</small></h6>
+      <div class="text-secondary">鳳凰獎：年資 ≥ <b>${P.minServiceYears}</b>、時數 ≥ <b>${P.minTotalHours}</b>；救護志工菁英：年資 ≥ <b>${RULES.awards.emsElite.minServiceYears}</b>。</div>
+    </div>`;
+  $('#rulesDoc').html(html);
+}
+$('#rulesModal').on('show.bs.modal', buildRulesDoc);
+
+/* =========================
+   載入本人資料 & 時數列
+   ========================= */
+function loadSelf(){
+  $('#whoami').text(`查詢對象：${SELF_NAME}`);
+  // 1) 人員資料
+  jsonp(`${GAS_WEB_APP_URL}?fn=person&name=${encodeURIComponent(SELF_NAME)}`, res=>{
+    window.__SELF__ = res && res.ok && res.row ? res.row : null;
+    renderAll();
+  });
+  // 2) 時數「整列」
+  jsonp(`${GAS_WEB_APP_URL}?fn=hours_row&name=${encodeURIComponent(SELF_NAME)}`, res=>{
+    window.__HOURS_ROW__ = res && res.ok ? res : null;
+    renderAll();
+  });
 }
 
-/* ======= 初始化 ======= */
+function renderAll(){
+  const me = window.__SELF__;
+  const hr = window.__HOURS_ROW__;
+  if(!me || !hr) return; // 兩邊都到齊才渲染
+
+  // ===== 協勤時數（合計 + 規則判定） =====
+  const total = Number(hr.total||0);
+  $('#dutyHoursTotal').text(total);
+
+  const {y,m} = curYM();
+  const ymRoc = toRocYM(y,m);
+  const monHours = Number((hr.months||{})[ymRoc]||0);
+  $('#monthHours').text(monHours);
+  $('#ymRoc').text(`${toRoc(y)}年 ${pad2(m)}月`);
+
+  // 近 N 月合計
+  const ymsGy = recentGyYms(y,m,ROLLING_MONTHS);
+  const sumRecent = ymsGy.reduce((s,gy)=> s + Number((hr.months||{})[gyToRocYm(gy)]||0), 0);
+
+  const dutyOk = (monHours >= RULES.duty.minMonthlyHours) || (sumRecent >= RULES.duty.rolling.minSum);
+  $('#dutyStatus').toggleClass('ok',dutyOk).toggleClass('warn',!dutyOk).text(dutyOk?'正常':'未達標');
+  $('#ruleDuty').text(`每月 ≥ ${RULES.duty.minMonthlyHours} 小時或近 ${ROLLING_MONTHS} 月合計 ≥ ${RULES.duty.rolling.minSum} 小時`);
+
+  // 最近 N 月清單（YYYY-MM）
+  const lines = ymsGy.map(gy=>{
+    const v = Number((hr.months||{})[gyToRocYm(gy)]||0);
+    return `${gy}：${v} 小時`;
+  }).join('\n');
+  $('#recentN').text(`最近 ${ROLLING_MONTHS} 月（含本月）累計：${sumRecent} 小時\n\n${lines}`);
+
+  // ===== 常年訓練（從人員資料抓「當年出席/請假/缺席」型欄位；沒有就 0） =====
+  const thisYear = new Date().getFullYear();
+  const att   = numFromAny(me, ['當年出席','訓練出席','出席次數']) || 0;
+  const leave = numFromAny(me, ['當年請假','訓練請假','請假次數']) || 0;
+  const abs   = numFromAny(me, ['當年缺席','訓練缺席','缺席次數']) || 0;
+  $('#trainingYear').text(thisYear);
+  $('#trainingAttend').text(att);
+  $('#trainingLeave').text(leave);
+  $('#trainingAbsent').text(abs);
+  const trainOk = att >= RULES.training.minAttendPerYear;
+  $('#trainingStatus').toggleClass('ok',trainOk).toggleClass('warn',!trainOk).text(trainOk?'正常':'未達標');
+  $('#ruleTraining').text(`全年訓練應達 ${RULES.training.minAttendPerYear} 次`);
+
+  // ===== 服務年資（入隊日期→動態算；否則吃「服務年資」欄；最後 0） =====
+  const joinDateStr = strFromAny(me, ['入隊日期','到隊日期','入隊日','到隊日']);
+  let serviceYears = 0;
+  if(joinDateStr){
+    const jd = new Date(joinDateStr.replace(/\//g,'-'));
+    const now = new Date();
+    serviceYears = now.getFullYear()-jd.getFullYear() - ((now.getMonth()<jd.getMonth() || (now.getMonth()==jd.getMonth() && now.getDate()<jd.getDate()))?1:0);
+  }else{
+    serviceYears = numFromAny(me, ['服務年資','年資']) || 0;
+  }
+  $('#serviceYears').text(serviceYears);
+
+  // ===== 入隊累積時數（優先用合計；若人員資料已有欄位也可覆蓋） =====
+  let acc = total;
+  const accFromPeople = numFromAny(me, ['入隊累積時數','累積時數','總時數']);
+  if (typeof accFromPeople === 'number' && accFromPeople>0) acc = accFromPeople;
+  $('#joinAccHours').text(acc);
+
+  // ===== 班程（從人員資料欄位判定） =====
+  const basicDone = asBoolDone(me['新進人員基本訓練']);
+  const cadreDone = asBoolDone(me['基礎幹部講習班']);
+  $('#courseBasicState').toggleClass('ok',basicDone).toggleClass('warn',!basicDone).text(basicDone?'已完成':'未完成');
+  $('#courseCadreState').toggleClass('ok',cadreDone).toggleClass('warn',!cadreDone).text(cadreDone?'已完成':'未完成');
+  $('#ruleCourseBasic').text(`基本訓練 ${RULES.courses.basic.mustFinishWithinYears} 年內完成`);
+  $('#ruleCourseCadre').text(`幹部講習滿 ${RULES.courses.cadre.eligibleAfterYears} 年後、${RULES.courses.cadre.mustFinishWithinYears} 年內完成`);
+
+  // ===== 獎項（基本門檻判定；冷卻若沒資料不強制） =====
+  const phoenixOK = (serviceYears >= RULES.awards.phoenix.minServiceYears) && (acc >= RULES.awards.phoenix.minTotalHours);
+  const emsOK     = (serviceYears >= RULES.awards.emsElite.minServiceYears);
+  $('#awardPhoenix').toggleClass('ok',phoenixOK).toggleClass('warn',!phoenixOK).text(phoenixOK?'符合資格':'未符合');
+  $('#awardEMS').toggleClass('ok',emsOK).toggleClass('warn',!emsOK).text(emsOK?'符合資格':'未符合');
+  $('#ruleAwardPhoenix').text(`鳳凰獎：年資≥${RULES.awards.phoenix.minServiceYears}、時數≥${RULES.awards.phoenix.minTotalHours}，近${RULES.awards.phoenix.cooldownPhoenixYears}年未得鳳凰、近${RULES.awards.phoenix.cooldownEMSYears}年未得救護志工菁英`);
+  $('#ruleAwardEMS').text(`救護志工菁英：年資≥${RULES.awards.emsElite.minServiceYears}`);
+}
+
+// 從多個可能欄位名找數字
+function numFromAny(obj, keys){
+  for(const k of keys){ if(obj[k]!=null && obj[k]!==''){ const n = Number(String(obj[k]).replace(/[, ]/g,'')); if(isFinite(n)) return n; } }
+  return 0;
+}
+// 從多個可能欄位名找字串
+function strFromAny(obj, keys){
+  for(const k of keys){ if(obj[k]!=null && String(obj[k]).trim()!=='') return String(obj[k]).trim(); }
+  return '';
+}
+
+/* =========================
+   初始化
+   ========================= */
 $(function(){
   initYM();
+  $('#whoami').text(`查詢對象：${SELF_NAME}`);
+  loadSelf();
 });
 </script>
 </body>
