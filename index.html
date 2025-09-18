@@ -326,7 +326,7 @@ function initYM(){
   const years=[y-2,y-1,y,y+1];
   $('#selYear').empty(); $('#selMonth').empty();
   years.forEach(yy=>$('#selYear').append(`<option value="${yy}">${yy}（民國${toRoc(yy)}年）</option>`));
-  for(let i=1;i<=12;i++) $('#selMonth').append(`<option value="${i}">${pad2(i)}月</option>`));
+  for(let i=1;i<=12;i++) $('#selMonth').append(`<option value="${i}">${pad2(i)}月</option>`);
   $('#selYear').val(y); $('#selMonth').val(m);
   $('#rocBadge').text(`民國 ${toRoc(y)} 年`);
 }
