@@ -2,137 +2,191 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <title>人員資料清單（GitHub 前端 × Google Sheet）</title>
+  <title>義消服務查詢（單人＋ROC 月時數報表）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Bootstrap 5 與 jQuery（CDN） -->
+
+  <!-- Bootstrap 5 & jQuery（CDN） -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <style>
-    body { background: #f7f8fa; }
-    .page-title { font-weight: 800; letter-spacing: .04em; }
-    .table-wrap { overflow: auto; background: #fff; border: 1px solid #e9ecef; border-radius: .5rem; }
-    thead th { position: sticky; top: 0; background: #f0f3f6; z-index: 1; }
-    .badge-dot { display:inline-block; width:.5rem; height:.5rem; border-radius:50%; margin-right:.35rem; background:#28a745; }
-    .toolbar { gap: .5rem; }
-    .muted { color:#6c757d; font-size:.9rem; }
+    body { background:#f7f8fa; }
+    .page-title { font-weight:700; letter-spacing:.05em; }
+    .card-soft { border:1px solid #e9ecef; }
+    .section-title { font-weight:700; margin-bottom:.25rem; }
+    .keyline { border-left:4px solid #0d6efd; padding-left:.75rem; }
+    .muted { color:#6c757d; }
+    .table-wrap { overflow:auto; background:#fff; border:1px solid #e9ecef; border-radius:.5rem; }
+    thead th { position:sticky; top:0; background:#f0f3f6; z-index:1; }
+    .w-12 { width:12rem; }
+    .mono { font-family:ui-monospace, Menlo, Consolas, monospace; }
   </style>
 </head>
 <body>
-  <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-end mb-3">
-      <div>
-        <h1 class="page-title mb-0">人員資料清單</h1>
-        <div class="muted" id="txtUpdated">載入中…</div>
-      </div>
-      <div class="d-flex toolbar">
-        <input id="txtSearch" class="form-control" placeholder="關鍵字搜尋（姓名 / 職稱 / 單位 / 身分證）">
-        <button id="btnReload" class="btn btn-outline-primary">重新載入</button>
-      </div>
-    </div>
-
-    <div class="table-wrap">
-      <table class="table table-sm table-hover align-middle mb-0" id="tblPeople">
-        <thead id="thead"></thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </div>
-
-    <div class="mt-3 muted">
-      <span class="badge-dot"></span>資料來源：Google Sheet〈人員資料〉（透過 Apps Script 提供）
+<div class="container py-4">
+  <!-- Header -->
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+    <h1 class="page-title h4 m-0">義消服務查詢</h1>
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-secondary">查詢 ROC 年月：</span>
+      <select id="selYear" class="form-select form-select-sm w-12"></select>
+      <select id="selMonth" class="form-select form-select-sm w-12"></select>
+      <button id="btnLoadHours" class="btn btn-outline-primary btn-sm">載入時數報表</button>
     </div>
   </div>
 
-  <script>
-    // === 必改：填入你的 Apps Script Web App URL（/exec 結尾） ===
-    const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbye9O6BDNqLcUfagDbaEa9v5ejTHVfBVdc6rPddSlfuHolT78sHAsk4zB-fpXALJNKk/exec'; // 例如：https://script.google.com/macros/s/AKfycb.../exec
+  <!-- 查詢一個人 -->
+  <div class="card card-soft mb-4">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label">姓名（支援部分比對）</label>
+          <input id="txtName" type="text" class="form-control" placeholder="例如：黃意婷、宇樺…">
+        </div>
+        <div class="col-md-3">
+          <button id="btnSearch" class="btn btn-primary w-100">查個人</button>
+        </div>
+        <div class="col-md-5 text-end">
+          <span id="txtPeopleUpdated" class="muted"></span>
+        </div>
+      </div>
+    </div>
+  </div>
 
-    // === 全域狀態 ===
-    let RAW_HEADERS = [];
-    let RAW_ROWS = [];
-    let FILTERED_ROWS = [];
+  <!-- 個人資料（只顯示一筆，非整表） -->
+  <div class="card card-soft mb-4 d-none" id="cardPerson">
+    <div class="card-body">
+      <div class="section-title keyline">個人資料</div>
+      <div id="personBox" class="row row-cols-1 row-cols-md-2 g-3"></div>
+    </div>
+  </div>
 
-    // === UI 綁定 ===
-    $(function() {
-      $('#btnReload').on('click', loadData);
-      $('#txtSearch').on('input', function() {
-        const q = $(this).val().trim();
-        applyFilter(q);
-      });
-      // 首次載入
-      loadData();
-    });
+  <!-- 指定 ROC 月份的時數報表 -->
+  <div class="card card-soft mb-5">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="section-title keyline mb-0">時數報表</div>
+        <span id="txtHoursUpdated" class="muted"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="table table-sm table-hover align-middle mb-0" id="tblHours">
+          <thead><tr id="hoursHead"></tr></thead>
+          <tbody id="hoursBody"><tr><td class="text-muted p-3">尚未載入，請選 ROC 年月後按「載入時數報表」。</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
 
-    // === 讀資料（用 JSONP 保證跨網域） ===
-    function loadData() {
-      $('#txtUpdated').text('載入中…');
-      // 先移除舊的 JSONP script
-      $('script[data-jsonp]').remove();
-      // 建立新的 JSONP 呼叫
-      const cbName = 'renderPeople_' + Date.now();
-      window[cbName] = function(payload){ renderPeople(payload); delete window[cbName]; };
+<script>
+/* ======= 必改：你的 Apps Script Web App URL（/exec） ======= */
+const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyZm1_4CE-IS5JSCHPFfeIKItb7hM5JZtJsFxK6QhVUldPEaW6RbvkmgAjzU8oCyi28/exec';
 
-      const script = document.createElement('script');
-      script.src = `${GAS_WEB_APP_URL}?callback=${cbName}`;
-      script.setAttribute('data-jsonp', '1');
-      script.onerror = function() {
-        $('#txtUpdated').text('讀取失敗，請檢查 Apps Script 是否已發佈，或 URL 是否正確。');
-      };
-      document.body.appendChild(script);
+/* ======= ROC 年月 UI ======= */
+function pad2(n){ return n<10 ? ('0'+n) : ''+n; }
+function toRoc(y){ return y - 1911; }
+function rocYm(){ const y=+$('#selYear').val(), m=+$('#selMonth').val(); return `${pad3( toRoc(y) )}-${pad2(m)}`; }
+function pad3(n){ const s=''+n; return s.length>=3? s : ('000'+s).slice(-3); }
+
+function initYM(){
+  const t=new Date(), y=t.getFullYear(), m=t.getMonth()+1;
+  const years=[y-1, y, y+1];
+  $('#selYear').empty(); $('#selMonth').empty();
+  years.forEach(yy=> $('#selYear').append(`<option value="${yy}">民國 ${toRoc(yy)} 年</option>`));
+  for(let i=1;i<=12;i++) $('#selMonth').append(`<option value="${i}">${pad2(i)}月</option>`));
+  $('#selYear').val(y); $('#selMonth').val(m);
+}
+
+/* ======= JSONP 呼叫工具 ======= */
+function jsonp(url, cb){
+  const cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random()*1e6);
+  window[cbName] = function(resp){ try{ cb(resp); } finally{ delete window[cbName]; } };
+  const s = document.createElement('script');
+  s.src = url + (url.includes('?')?'&':'?') + 'callback=' + cbName;
+  s.dataset.jsonp = '1';
+  s.onerror = ()=> cb({ ok:false, error:'讀取失敗（可能是 URL 或權限問題）' });
+  document.body.appendChild(s);
+}
+
+/* ======= 查一個人（fn=person） ======= */
+$('#btnSearch').on('click', loadPerson);
+$('#txtName').on('keydown', e=>{ if(e.key==='Enter') loadPerson(); });
+
+function loadPerson(){
+  const name = $('#txtName').val().trim();
+  if(!name){ alert('請輸入姓名（可部分字）'); return; }
+  $('#txtPeopleUpdated').text('載入中…');
+  jsonp(`${GAS_WEB_APP_URL}?fn=person&name=${encodeURIComponent(name)}&limit=1`, (res)=>{
+    if(!res || res.ok!==true || (res.rows||[]).length===0){
+      $('#cardPerson').addClass('d-none');
+      $('#txtPeopleUpdated').text(res && res.error ? `讀取失敗：${res.error}` : '查無此人');
+      return;
     }
+    const row = res.rows[0], headers=res.headers||[];
+    // 只挑常用欄位顯示（其餘仍在 row，可依需要追加）
+    const fields = ['單位','職稱','姓名','性別','連絡電話','身分證字號','出生年月日','歲數','救護員級別','備註','素行梯次','新進人員基本訓練','基礎幹部講習班','初級幹部講習班'];
+    const html = fields.filter(f=>f in row).map(f=>{
+      const v = (row[f] ?? '').toString();
+      return `<div class="col">
+        <div class="border rounded p-2 bg-white">
+          <div class="text-secondary small">${f}</div>
+          <div class="fw-semibold">${escapeHtml(v || '—')}</div>
+        </div>
+      </div>`;
+    }).join('');
+    $('#personBox').html(html || `<div class="text-muted">此人無可顯示欄位</div>`);
+    $('#cardPerson').removeClass('d-none');
+    $('#txtPeopleUpdated').text(`更新時間：${res.updatedAt || '—'}`);
+  });
+}
 
-    // === 收到資料後渲染 ===
-    function renderPeople(payload) {
-      if (!payload || payload.ok !== true) {
-        $('#txtUpdated').text(payload && payload.error ? `讀取失敗：${payload.error}` : '讀取失敗');
-        return;
-      }
-      RAW_HEADERS = payload.headers || [];
-      RAW_ROWS = payload.rows || [];
-      FILTERED_ROWS = RAW_ROWS.slice();
+/* ======= 讀取 ROC 月份時數報表（fn=hours） ======= */
+$('#btnLoadHours').on('click', loadHours);
 
-      $('#txtUpdated').text(`共 ${RAW_ROWS.length} 筆；更新時間：${payload.updatedAt || '—'}`);
-
-      // 建表頭
-      const ths = RAW_HEADERS.map(h => `<th class="text-nowrap">${escapeHtml(h)}</th>`).join('');
-      $('#thead').html(`<tr>${ths}</tr>`);
-
-      // 建資料列
-      renderBody(FILTERED_ROWS);
+function loadHours(){
+  const ym = rocYm(); // 例如 114-06
+  $('#txtHoursUpdated').text(`載入中…（${ym}）`);
+  $('#hoursHead').html(''); $('#hoursBody').html('<tr><td class="p-3 text-muted">載入中…</td></tr>');
+  jsonp(`${GAS_WEB_APP_URL}?fn=hours&ym=${encodeURIComponent(ym)}`, (res)=>{
+    if(!res || res.ok!==true){
+      $('#hoursHead').html(''); $('#hoursBody').html(`<tr><td class="p-3 text-danger">讀取失敗：${res && res.error ? escapeHtml(res.error) : '未知錯誤'}</td></tr>`);
+      $('#txtHoursUpdated').text('');
+      return;
     }
+    // 表頭：姓名、<ym>、合計
+    const ymCol = res.ym;
+    $('#hoursHead').html(`<th>姓名</th><th class="text-end">${ymCol}</th><th class="text-end">合計</th>`);
+    // 內容
+    const rows = (res.rows||[]).map(r=>{
+      const n = r['姓名'] || '';
+      const v = Number(r[ymCol]||0);
+      const t = Number(r['合計']||0);
+      return `<tr>
+        <td>${escapeHtml(n)}</td>
+        <td class="text-end">${fmtHour(v)}</td>
+        <td class="text-end">${fmtHour(t)}</td>
+      </tr>`;
+    }).join('');
+    $('#hoursBody').html(rows || `<tr><td colspan="3" class="p-3 text-muted">本月無資料</td></tr>`);
+    $('#txtHoursUpdated').text(`更新時間：${res.updatedAt || '—'}，筆數：${res.count || 0}`);
+  });
+}
 
-    function renderBody(rows) {
-      const tdsHtml = rows.map(rowObj => {
-        const tds = RAW_HEADERS.map(h => `<td>${escapeHtml(rowObj[h] ?? '')}</td>`).join('');
-        return `<tr>${tds}</tr>`;
-      }).join('');
-      $('#tbody').html(tdsHtml || `<tr><td colspan="${RAW_HEADERS.length}" class="text-center text-muted">查無資料</td></tr>`);
-    }
+/* ======= 小工具 ======= */
+function escapeHtml(str){
+  return String(str).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+}
+function fmtHour(n){
+  const x = Number(n||0);
+  // 顯示到 0.5（若要兩位小數改：x.toFixed(2)）
+  return (Math.round(x*2)/2).toString();
+}
 
-    // === 關鍵字過濾（姓名 / 職稱 / 單位 / 身分證…實際上全欄一起比對） ===
-    function applyFilter(q) {
-      if (!q) {
-        FILTERED_ROWS = RAW_ROWS.slice();
-        renderBody(FILTERED_ROWS);
-        return;
-      }
-      const keyword = q.toLowerCase();
-      FILTERED_ROWS = RAW_ROWS.filter(o => {
-        return Object.values(o).some(v => String(v).toLowerCase().includes(keyword));
-      });
-      renderBody(FILTERED_ROWS);
-    }
-
-    // === HTML 逃脫 ===
-    function escapeHtml(str) {
-      return String(str)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
-    }
-  </script>
+/* ======= 初始化 ======= */
+$(function(){
+  initYM();
+});
+</script>
 </body>
 </html>
