@@ -329,20 +329,29 @@ function courseLabelRaw(v){
    年月 UI
    ========================= */
 function initYM(){
-  const t=new Date(), y=t.getFullYear(), m=t.getMonth()+1;
-  const years=[y-2,y-1,y,y+1];
-  $('#selYear').empty(); $('#selMonth').empty();
-  years.forEach(yy=>$('#selYear').append(`<option value="${yy}">${yy}${RULES.display.rocYear?`（民國${toRoc(yy)}年）`:''}</option>`));
-  for(let i=1;i<=12;i++) $('#selMonth').append(`<option value="${i}">${pad2(i)}月</option>`));
-  $('#selYear').val(y); $('#selMonth').val(m);
-  $('#rocBadge').text(RULES.display.rocYear?`民國 ${toRoc(y)} 年`:`${y} 年`);
+  const t = new Date();
+  const y = t.getFullYear();
+  const m = t.getMonth() + 1;
+
+  const years = [y-2, y-1, y, y+1];
+  $('#selYear').empty();
+  $('#selMonth').empty();
+
+  years.forEach(yy => {
+    $('#selYear').append(
+      `<option value="${yy}">${yy}${RULES.display.rocYear ? `（民國${toRoc(yy)}年）` : ''}</option>`
+    );
+  });
+
+  // 這行原本多了一個「)」，導致整個 script 掛掉
+  for (let i = 1; i <= 12; i++) {
+    $('#selMonth').append(`<option value="${i}">${pad2(i)}月</option>`);
+  }
+
+  $('#selYear').val(y);
+  $('#selMonth').val(m);
+  $('#rocBadge').text(RULES.display.rocYear ? `民國 ${toRoc(y)} 年` : `${y} 年`);
 }
-function curYM(){ return { y:+$('#selYear').val(), m:+$('#selMonth').val() }; }
-$('#selYear,#selMonth').on('change', ()=>{
-  const {y}=curYM();
-  $('#rocBadge').text(RULES.display.rocYear?`民國 ${toRoc(y)} 年`:`${y} 年`);
-  if(CURRENT_PERSON && CURRENT_HOURS) renderUI(); // 切月即時重算
-});
 
 /* =========================
    規則 Modal（動態渲染）
