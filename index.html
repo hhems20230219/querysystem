@@ -90,12 +90,22 @@ function rocYm(){ const y=+$('#selYear').val(), m=+$('#selMonth').val(); return 
 function pad3(n){ const s=''+n; return s.length>=3? s : ('000'+s).slice(-3); }
 
 function initYM(){
-  const t=new Date(), y=t.getFullYear(), m=t.getMonth()+1;
-  const years=[y-1, y, y+1];
-  $('#selYear').empty(); $('#selMonth').empty();
-  years.forEach(yy=> $('#selYear').append(`<option value="${yy}">民國 ${toRoc(yy)} 年</option>`));
-  for(let i=1;i<=12;i++) $('#selMonth').append(`<option value="${i}">${pad2(i)}月</option>`));
-  $('#selYear').val(y); $('#selMonth').val(m);
+  const t = new Date(), y = t.getFullYear(), m = t.getMonth() + 1;
+  const years = [y - 1, y, y + 1];
+
+  $('#selYear').empty();
+  $('#selMonth').empty();
+
+  years.forEach(yy => {
+    $('#selYear').append(`<option value="${yy}">民國 ${toRoc(yy)} 年</option>`);
+  });
+
+  for (let i = 1; i <= 12; i++) {
+    $('#selMonth').append(`<option value="${i}">${pad2(i)}月</option>`);
+  }
+
+  $('#selYear').val(y);
+  $('#selMonth').val(m);
 }
 
 /* ======= JSONP 呼叫工具 ======= */
